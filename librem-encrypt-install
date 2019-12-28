@@ -51,5 +51,10 @@ card. Users should specify the device to be unlocked using
 'cryptdevice=device:dmname' on the kernel command line, where 'device' is the
 path to the raw device, and 'dmname' is the name given to
 the device after unlocking, and will be available as /dev/mapper/dmname.
+
+This hook assumes a keyfile, 'cryptkey=device:fstype:path' should be specified
+on the kernel cmdline, where 'device' represents the raw block device where the
+key exists, 'fstype' is the filesystem type of 'device' (or auto), and 'path'
+is the absolute path of the keyfile within the device.
 HELPEOF
 }
