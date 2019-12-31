@@ -4,6 +4,9 @@ run_hook() {
     modprobe -a -q dm-crypt >/dev/null 2>&1
     [ "${quiet}" = "y" ] && CSQUIET=">/dev/null"
 
+    # Smartcard reader daemon
+    /usr/bin/pcscd --auto-exit &> /dev/null
+
     # Get keyfile
     ckeyfile="/crypto_keyfile.bin"
     if [ -n "$cryptkey" ]; then
@@ -19,8 +22,18 @@ EOF
                 *[!0-9]*)
                     # Use a file on the device
                     # ckarg1 is not numeric: ckarg1=filesystem, ckarg2=path
-                    mkdir /ckey
+                    mkdir /c
                     mount -r -t "$ckarg1" "$resolved" /c
+                    /usr/bin/gpg --homedir "/etc/initcpio/gpg" --import /etc/initcpio/gpg/pubkey.gpg
+                    if [ 0 -ne $? ] ; then
+                        err "Failed to import public key, aborting..."
+                        return 1
+                    fi
+
+                    # Test communication with card - this is also needed for decryption
+                    # to work at all
+                    /usr/bin/gpg --homedir "/etc/initcpio/gpg" --card-status >/dev/null 2>&1
+
                     cat "/c/$ckarg2" | gpg -d > $ckeyfile >/dev/null 2>&1
                     # dd if="/ckey/$ckarg2" of="$ckeyfile" >/dev/null 2>&1
                     umount /c
@@ -34,7 +47,7 @@ EOF
         fi
 
         if [ ! -f ${ckeyfile} ]; then
-           err "Keyfile could not be opened. Reverting to passphrase."
+           err "Keyfile could not be opened, aborting... "
            return 1
         fi
     fi
@@ -112,6 +125,9 @@ EOF
         fi
 
     fi
+
+    # Cleanup
+    /bin/killall gpg-agent scdaemon pcscd &> /dev/null
     rm -f ${ckeyfile}
 }
 

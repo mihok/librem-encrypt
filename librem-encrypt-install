@@ -39,6 +39,9 @@ build() {
     chmod 0700 "${BUILDROOT}/etc/initcpio/gpg"
     echo "pinentry-program /usr/bin/pinentry" > "${BUILDROOT}/etc/initcpio/gpg/gpg-agent.conf"
 
+    # include the gpg public key from the card
+    curl $(gpg --card-status | grep URL | cut -d ':' -f 2,3) > "${BUILDROOT}/etc/initcpio/gpg/pubkey.gpg"
+
     add_full_dir "${BUILDROOT}/etc/initcpio/gpg"
     
     add_runscript
