@@ -1,0 +1,17 @@
+{
+  "name": "mihok/arch-librem-encrypt64",
+  "description": "This box contains Arch Linux 2019.12 64-bit.",
+  "versions": [
+    {
+      "version": "0.0.1",
+      "providers": [
+        {
+          "name": "virtualbox",
+          "url": "http://mihok.computer/archlibrem64_001_virtualbox.box",
+          "checksum_type": "sha1",
+          "checksum": ""
+        }
+      ]
+    }
+  ]
+}
