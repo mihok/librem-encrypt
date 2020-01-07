@@ -4,9 +4,6 @@ run_hook() {
     modprobe -a -q dm-crypt >/dev/null 2>&1
     [ "${quiet}" = "y" ] && CSQUIET=">/dev/null"
 
-    # Smartcard reader daemon
-    /usr/bin/pcscd --auto-exit &> /dev/null
-
     # Get keyfile
     ckeyfile="/crypto_keyfile.bin"
     if [ -n "$cryptkey" ]; then
@@ -17,26 +14,38 @@ EOF
         if [ "$ckdev" = "rootfs" ]; then
             ckeyfile=$ckarg1
         elif resolved=$(resolve_device "${ckdev}" ${rootdelay}); then
-            # TODO: Figure out what this first case means
             case ${ckarg1} in
                 *[!0-9]*)
                     # Use a file on the device
                     # ckarg1 is not numeric: ckarg1=filesystem, ckarg2=path
                     mkdir /c
                     mount -r -t "$ckarg1" "$resolved" /c
-                    /usr/bin/gpg --homedir "/etc/initcpio/gpg" --import /etc/initcpio/gpg/pubkey.gpg
-                    if [ 0 -ne $? ] ; then
-                        err "Failed to import public key, aborting..."
-                        return 1
+
+                    if [ -r "${ckarg2}" -a "${ckarg2%.gpg}" != "${ckarg2}" ]; then
+                        # Smartcard reader daemon
+                        pcscd --auto-exit &> /dev/null
+
+                        gpg --homedir "/etc/initcpio/gpg" --import /etc/initcpio/gpg/pubkey.gpg
+
+                        if [ 0 -ne $? ] ; then
+                            err "Failed to import public key, aborting..."
+                            return 1
+                        fi
+
+                        # Test communication with card - this is also needed for decryption
+                        # to work at all
+                        gpg --homedir "/etc/initcpio/gpg" --card-status >/dev/null 2>&1
+
+                        cat "/c/$ckarg2" | gpg -d > $ckeyfile >/dev/null 2>&1
+
+                        # Cleanup
+                        killall gpg-agent scdaemon pcscd &> /dev/null
+                    else
+                        dd if="/c/$ckarg2" of="$ckeyfile" >/dev/null 2>&1
                     fi
 
-                    # Test communication with card - this is also needed for decryption
-                    # to work at all
-                    /usr/bin/gpg --homedir "/etc/initcpio/gpg" --card-status >/dev/null 2>&1
-
-                    cat "/c/$ckarg2" | gpg -d > $ckeyfile >/dev/null 2>&1
-                    # dd if="/ckey/$ckarg2" of="$ckeyfile" >/dev/null 2>&1
                     umount /c
+
                     ;;
                 *)
                     # Read raw data from the block device
@@ -121,13 +130,11 @@ EOF
             fi
 
         else
-            err "Failed to open encryption mapping: The device ${cryptdev} is not a LUKS volume and the crypto= paramater was not specified."
+            err "Failed to open encryption mapping: The device ${cryptdev} is not a dm-encrypt plain volume and the crypto= paramater was not specified."
         fi
 
     fi
 
-    # Cleanup
-    /bin/killall gpg-agent scdaemon pcscd &> /dev/null
     rm -f ${ckeyfile}
 }
 
