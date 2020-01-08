@@ -21,9 +21,9 @@ EOF
                     mkdir /c
                     mount -r -t "$ckarg1" "$resolved" /c
 
-                    msg "Checking if crypto key is gpg based '${ckargs2%.gpg}' '${ckargs2}'"
+                    msg "Checking if crypto key is gpg based '${ckarg2%.gpg}' '${ckarg2}'"
 
-                    if [ -r "${ckarg2}" && "${ckarg2%.gpg}" != "${ckarg2}" ]; then
+                    if [ -r "${ckarg2}" ] && [ "${ckarg2%.gpg}" != "${ckarg2}" ]; then
                         # Smartcard reader daemon
                         msg "Starting PC/SC smart card daemon"
                         pcscd --auto-exit &> /dev/null
