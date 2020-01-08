@@ -21,10 +21,14 @@ EOF
                     mkdir /c
                     mount -r -t "$ckarg1" "$resolved" /c
 
+                    msg "Checking if crypto key is gpg based"
+
                     if [ -r "${ckarg2}" -a "${ckarg2%.gpg}" != "${ckarg2}" ]; then
                         # Smartcard reader daemon
+                        msg "Starting PC/SC smart card daemon"
                         pcscd --auto-exit &> /dev/null
 
+                        msg "Checking for OpenPGP smart card"
                         gpg --homedir "/etc/initcpio/gpg" --import /etc/initcpio/gpg/pubkey.gpg
 
                         if [ 0 -ne $? ] ; then
@@ -35,6 +39,8 @@ EOF
                         # Test communication with card - this is also needed for decryption
                         # to work at all
                         gpg --homedir "/etc/initcpio/gpg" --card-status >/dev/null 2>&1
+
+                        msg "Key decrypted!"
 
                         cat "/c/$ckarg2" | gpg -d > $ckeyfile >/dev/null 2>&1
 
