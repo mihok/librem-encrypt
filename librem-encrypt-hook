@@ -5,7 +5,7 @@ run_hook() {
     [ "${quiet}" = "y" ] && CSQUIET=">/dev/null"
 
     # Get keyfile
-    ckeyfile="/crypto_keyfile.bin"
+    c_keyfile="/crypto_keyfile.bin"
     if [ -n "$cryptkey" ]; then
         IFS=: read ckdev ckarg1 ckarg2 <<EOF
 $cryptkey
@@ -21,15 +21,17 @@ EOF
                     mkdir /c
                     mount -r -t "$ckarg1" "$resolved" /c
 
-                    msg "Checking if crypto key is gpg based '${ckarg2%.gpg}' '${ckarg2}'"
-
-                    if [ -r "${ckarg2}" ] && [ "${ckarg2%.gpg}" != "${ckarg2}" ]; then
+                    if [ -r "/c/${ckarg2}" ] && [ "${ckarg2%.gpg}" != "${ckarg2}" ]; then
                         # Smartcard reader daemon
-                        msg "Starting PC/SC smart card daemon"
                         pcscd --auto-exit &> /dev/null
 
-                        msg "Checking for OpenPGP smart card"
-                        gpg --homedir "/etc/initcpio/gpg" --import /etc/initcpio/gpg/pubkey.gpg
+                        gpg_homedir="/etc/initcpio/gpg"
+                        gpg_tty="/dev/console"
+
+                        # Set the GPG tty for pinentry
+                        export GPG_TTY="$gpg_tty"
+
+                        gpg -q --homedir "$gpg_homedir" --import /etc/initcpio/gpg/pubkey.gpg
 
                         if [ 0 -ne $? ] ; then
                             err "Failed to import public key, aborting..."
@@ -38,16 +40,16 @@ EOF
 
                         # Test communication with card - this is also needed for decryption
                         # to work at all
-                        gpg --homedir "/etc/initcpio/gpg" --card-status >/dev/null 2>&1
+                        gpg -q --homedir "$gpg_homedir" --card-status >/dev/null 2>&1
 
-                        msg "Key decrypted!"
-
-                        cat "/c/$ckarg2" | gpg -d > $ckeyfile >/dev/null 2>&1
+                        cat "/c/${ckarg2}" | gpg -q --homedir "$gpg_homedir" -d -o "$c_keyfile" >/dev/null 2>&1
 
                         # Cleanup
                         killall gpg-agent scdaemon pcscd &> /dev/null
+
+                        rm -r "$gpg_homedir"
                     else
-                        dd if="/c/$ckarg2" of="$ckeyfile" >/dev/null 2>&1
+                        dd if="/c/$ckarg2" of="$c_keyfile" >/dev/null 2>&1
                     fi
 
                     umount /c
@@ -56,14 +58,14 @@ EOF
                 *)
                     # Read raw data from the block device
                     # ckarg1 is numeric: ckarg1=offset, ckarg2=length
-                    dd if="$resolved" of="$ckeyfile" bs=1 skip="$ckarg1" count="$ckarg2" >/dev/null 2>&1
+                    dd if="$resolved" of="$c_keyfile" bs=1 skip="$ckarg1" count="$ckarg2" >/dev/null 2>&1
                     ;;
             esac
         fi
 
-        if [ ! -f ${ckeyfile} ]; then
+        if [ ! -f ${c_keyfile} ]; then
            err "Keyfile could not be opened, aborting... "
-           return 1
+           exit 1
         fi
     fi
 
@@ -94,8 +96,6 @@ EOF
                 ;;
         esac
     done
-    msg "Encryption options '${cryptargs}'"
-
 
     if resolved=$(resolve_device "${cryptdev}" {rootdelay}); then
         if [ -n "${crypto}" ]; then
@@ -104,27 +104,26 @@ EOF
                 err "dm-crypt plain decryption not attempted..."
                 return 1
             fi
-            exe="cryptsetup open --type plain $resolved $cryptname $cryptargs"
+            exe="cryptsetup"
             IFS=: read c_hash c_cipher c_keysize c_offset c_skip <<EOF
 $crypto
 EOF
             [ -n "$c_hash" ]    && exe="$exe --hash '$c_hash'"
             [ -n "$c_cipher" ]  && exe="$exe --cipher '$c_cipher'"
+            [ -f "$c_keyfile" ]  && exe="$exe --key-file $c_keyfile"
             [ -n "$c_keysize" ] && exe="$exe --key-size '$c_keysize'"
             [ -n "$c_offset" ]  && exe="$exe --offset '$c_offset'"
             [ -n "$c_skip" ]    && exe="$exe --skip '$c_skip'"
-            if [ -f "$ckeyfile" ]; then
-                exe="$exe --key-file $ckeyfile"
-            else
-                echo ""
-                echo "A password is required to access the ${cryptname} volume:"
-            fi
-            eval "$exe $CSQUIET"
+
+            exe="$exe open --type plain $resolved $cryptname $cryptargs"
+
+            msg "$exe"
+            eval "$exe"
 
             if [ $? -ne 0 ]; then
                 err "Non-LUKS device decryption failed. verify format: "
                 err "      crypto=hash:cipher:keysize:offset:skip"
-                return 1
+                exit 1
             fi
             if [ -e "/dev/mapper/${cryptname}" ]; then
                 if [ ${DEPRECATED_CRYPT} -eq 1 ]; then
@@ -132,7 +131,7 @@ EOF
                 fi
             else
                 err "Password succeeded, but ${cryptname} creation failed, aborting..."
-                return 1
+                exit 1
             fi
 
         else
@@ -141,6 +140,6 @@ EOF
 
     fi
 
-    rm -f ${ckeyfile}
+    rm -f ${c_keyfile}
 }
 

@@ -22,7 +22,7 @@ build() {
     add_binary "dmsetup"
     add_binary "gpg"
     add_binary "gpg-agent"
-    add_binary "pinentry"
+    add_binary "pinentry-tty"
     add_binary "pcscd"
     add_binary "/usr/lib/gnupg/scdaemon"
     add_binary "shred"
@@ -37,7 +37,7 @@ build() {
     # add our gpg config
     mkdir -p "${BUILDROOT}/etc/initcpio/gpg"
     chmod 0700 "${BUILDROOT}/etc/initcpio/gpg"
-    echo "pinentry-program /usr/bin/pinentry" > "${BUILDROOT}/etc/initcpio/gpg/gpg-agent.conf"
+    echo "pinentry-program /usr/bin/pinentry-tty" > "${BUILDROOT}/etc/initcpio/gpg/gpg-agent.conf"
 
     # include the gpg public key from the card
     curl $(gpg --card-status | grep URL | cut -d ':' -f 2,3) > "${BUILDROOT}/etc/initcpio/gpg/pubkey.gpg"
