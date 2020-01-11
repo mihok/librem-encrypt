@@ -1,4 +1,1 @@
-id_gpg.privkey.sec
-id_gpg.pubkey.asc
-id_gpg.subkeys.sec
-id_gpg.revoke.asc
+revoke.key
